@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Monitor fotovoltaico</title>
+
+  <style>
+    /* ===== COLORES: cambia estos valores para personalizar ===== */
+    :root {
+      --fondo: #f6f4ee;
+      --texto: #1c2b2d;
+      --suave: #5b6b6d;
+      --principal: #14463a;
+      --sol: #f2b705;
+      --borde: #e2ddd0;
+      --verde: #2e9e5b;
+      --amarillo: #e0a800;
+      --rojo: #c8372d;
+      --azul: #2b6cb0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--fondo);
+      color: var(--texto);
+      line-height: 1.5;
+      padding-bottom: 76px; /* espacio para la barra inferior */
+    }
+
+    header {
+      background: var(--principal);
+      color: #fff;
+      padding: 18px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header h1 { font-size: 1.15rem; }
+    header small { color: #cfe3dc; display: block; font-size: 0.8rem; }
+
+    .insignia {
+      flex: none;
+      font-size: 0.78rem;
+      padding: 5px 10px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    main { max-width: 640px; margin: 0 auto; padding: 14px; }
+
+    .pestana { display: none; }
+    .pestana.activa { display: block; }
+
+    .tarjeta {
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    h2 { font-size: 1.05rem; color: var(--principal); margin-bottom: 10px; }
+
+    /* Semáforo */
+    .resultado {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px;
+      border-radius: 10px;
+      color: #fff;
+      background: var(--verde);
+      margin-bottom: 14px;
+      transition: background 0.3s;
+    }
+
+    .resultado.amarillo { background: var(--amarillo); color: #1c2b2d; }
+    .resultado.rojo { background: var(--rojo); }
+
+    .resultado .luz {
+      flex: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .resultado strong { font-size: 1.15rem; display: block; }
+    .resultado span { font-size: 0.9rem; }
+
+    /* Medidores */
+    .medidores {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .medidor {
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .medidor span { font-size: 0.8rem; color: var(--suave); }
+    .medidor strong { display: block; font-size: 1.35rem; }
+
+    .barra {
+      height: 8px;
+      background: #ece8da;
+      border-radius: 4px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+
+    .barra div {
+      height: 100%;
+      width: 0;
+      background: var(--verde);
+      transition: width 0.4s, background 0.3s;
+    }
+
+    /* Controles */
+    .campo { margin-bottom: 14px; }
+
+    .campo label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.92rem;
+      margin-bottom: 6px;
+    }
+
+    input[type="range"] { width: 100%; }
+
+    input[type="number"], input[type="text"], select {
+      width: 100%;
+      padding: 10px;
+      font-size: 1rem;
+      border: 1px solid var(--borde);
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    button {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 8px;
+      background: var(--principal);
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    button.secundario {
+      background: #fff;
+      color: var(--principal);
+      border: 1px solid var(--principal);
+    }
+
+    button.activo { background: var(--rojo); border-color: var(--rojo); color: #fff; }
+    button:active { opacity: 0.8; }
+
+    .nota { font-size: 0.85rem; color: var(--suave); margin-top: 6px; }
+
+    canvas { width: 100%; height: 180px; display: block; }
+
+    .leyenda { font-size: 0.82rem; color: var(--suave); margin-top: 6px; }
+    .leyenda b { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; }
+    .leyenda b:first-child { margin-left: 0; }
+
+    /* Alertas */
+    .alerta {
+      display: flex;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--borde);
+      font-size: 0.9rem;
+    }
+
+    .alerta:last-child { border-bottom: none; }
+
+    .punto {
+      flex: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-top: 6px;
+    }
+
+    .punto.verde { background: var(--verde); }
+    .punto.amarillo { background: var(--amarillo); }
+    .punto.rojo { background: var(--rojo); }
+
+    .alerta small { color: var(--suave); display: block; }
+
+    /* Barra inferior */
+    nav {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      background: #fff;
+      border-top: 1px solid var(--borde);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    nav button {
+      flex: 1;
+      margin: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--suave);
+      padding: 14px 4px;
+      font-size: 0.85rem;
+    }
+
+    nav button.actual {
+      color: var(--principal);
+      font-weight: bold;
+      box-shadow: inset 0 3px 0 var(--sol);
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div>
+      <h1>Monitor fotovoltaico</h1>
+      <small id="ultima">Esperando datos…</small>
+    </div>
+    <div class="insignia" id="insignia">Simulado</div>
+  </header>
+
+  <main>
+
+    <!-- ================= PANEL ================= -->
+    <div class="pestana activa" id="panel">
+
+      <div class="resultado" id="resultado">
+        <div class="luz"></div>
+        <div>
+          <strong id="estadoTexto">Normal</strong>
+          <span id="diagnosticoTexto">Esperando datos…</span>
+        </div>
+      </div>
+
+      <div class="medidores">
+        <div class="medidor">
+          <span>Batería (SoC)</span>
+          <strong id="mSoc">-- %</strong>
+          <div class="barra"><div id="bSoc"></div></div>
+        </div>
+        <div class="medidor">
+          <span>Irradiancia</span>
+          <strong id="mIrr">-- W/m²</strong>
+        </div>
+        <div class="medidor">
+          <span>Potencia real</span>
+          <strong id="mReal">-- kW</strong>
+        </div>
+        <div class="medidor">
+          <span>Potencia teórica</span>
+          <strong id="mTeo">-- kW</strong>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Caída de generación</h2>
+        <strong id="mCaida" style="font-size:1.35rem;">-- %</strong>
+        <div class="barra"><div id="bCaida"></div></div>
+        <p class="nota">Compara lo que debería generar la planta con lo que genera de verdad.</p>
+      </div>
+
+      <!-- Solo se ve en modo manual -->
+      <div class="tarjeta" id="controlesManual" hidden>
+        <h2>Control manual</h2>
+
+        <div class="campo">
+          <label for="mSocIn">Batería (SoC) <output id="oSoc">80 %</output></label>
+          <input type="range" id="mSocIn" min="0" max="100" value="80">
+        </div>
+        <div class="campo">
+          <label for="mIrrIn">Irradiancia <output id="oIrr">800 W/m²</output></label>
+          <input type="range" id="mIrrIn" min="0" max="1200" step="10" value="800">
+        </div>
+        <div class="campo">
+          <label for="mRealIn">Potencia real (kW)</label>
+          <input type="number" id="mRealIn" min="0" step="0.1" value="2.2">
+        </div>
+      </div>
+
+      <!-- Solo se ve en modo simulado -->
+      <div class="tarjeta" id="controlesSim">
+        <h2>Probar fallas</h2>
+        <button class="secundario" id="btnSuciedad" onclick="alternarSuciedad()">Simular suciedad en paneles</button>
+        <button class="secundario" id="btnCarga" onclick="alternarCarga()">Simular consumo muy alto</button>
+        <p class="nota">Activa una falla y mira cómo el semáforo cambia solo.</p>
+      </div>
+
+    </div>
+
+    <!-- ================= GRÁFICAS ================= -->
+    <div class="pestana" id="graficas">
+      <div class="tarjeta">
+        <h2>Potencia (kW)</h2>
+        <canvas id="cPotencia"></canvas>
+        <p class="leyenda"><b style="background:var(--azul)"></b>Real<b style="background:var(--sol)"></b>Teórica</p>
+      </div>
+      <div class="tarjeta">
+        <h2>Batería (SoC %)</h2>
+        <canvas id="cSoc"></canvas>
+        <p class="leyenda"><b style="background:var(--verde)"></b>SoC</p>
+      </div>
+    </div>
+
+    <!-- ================= ALERTAS ================= -->
+    <div class="pestana" id="alertas">
+      <div class="tarjeta">
+        <h2>Registro de alertas</h2>
+        <p class="nota" id="sinAlertas">Todavía no hay alertas registradas.</p>
+        <div id="listaAlertas"></div>
+        <button class="secundario" onclick="descargarCSV()">Descargar lecturas (CSV)</button>
+        <button class="secundario" onclick="borrarRegistro()">Borrar registro</button>
+      </div>
+    </div>
+
+    <!-- ================= AJUSTES ================= -->
+    <div class="pestana" id="ajustes">
+
+      <div class="tarjeta">
+        <h2>Origen de los datos</h2>
+        <div class="campo">
+          <label for="modo">Modo</label>
+          <select id="modo">
+            <option value="simulado">Automático (simulado)</option>
+            <option value="manual">Manual (con controles)</option>
+            <option value="api">Datos reales (API)</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="intervalo">Actualizar cada (segundos)</label>
+          <input type="number" id="intervalo" min="1" max="60" value="5">
+        </div>
+        <div class="campo">
+          <label for="capacidad">Capacidad de los paneles (kWp)</label>
+          <input type="number" id="capacidad" min="0.1" step="0.1" value="3">
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Conexión a tu API</h2>
+        <div class="campo">
+          <label for="apiUrl">URL del endpoint</label>
+          <input type="text" id="apiUrl" placeholder="https://tu-servidor.com/api/lectura/ultima">
+        </div>
+        <div class="campo">
+          <label for="apiToken">Token JWT (opcional)</label>
+          <input type="text" id="apiToken" placeholder="eyJhbGciOi…">
+        </div>
+        <p class="nota" id="apiEstado">La API no está en uso. Elige el modo "Datos reales (API)" para activarla.</p>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Umbrales de alerta</h2>
+        <div class="campo">
+          <label for="uAmarillo">SoC para alerta amarilla (menor a %)</label>
+          <input type="number" id="uAmarillo" min="0" max="100" value="40">
+        </div>
+        <div class="campo">
+          <label for="uRojo">SoC para estado crítico (menor a %)</label>
+          <input type="number" id="uRojo" min="0" max="100" value="20">
+        </div>
+        <div class="campo">
+          <label for="uCaida">Caída de generación para alerta (mayor a %)</label>
+          <input type="number" id="uCaida" min="0" max="100" value="20">
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <nav>
+    <button class="actual" data-ir="panel">Panel</button>
+    <button data-ir="graficas">Gráficas</button>
+    <button data-ir="alertas">Alertas</button>
+    <button data-ir="ajustes">Ajustes</button>
+  </nav>
+
+  <script>
+    // =====================================================
+    //  1. ELEMENTOS Y ESTADO
+    // =====================================================
+    const $ = function (id) { return document.getElementById(id); };
+
+    let lecturas = [];        // todas las lecturas (máximo 500)
+    let alertas = [];         // cambios de estado
+    let ultimoEstado = null;
+    let temporizador = null;
+
+    // Estado de la simulación
+    const sim = {
+      hora: 11,               // hora simulada del día (0 a 24)
+      soc: 75,
+      suciedad: 1,            // 1 = paneles limpios, 0.65 = sucios
+      cargaKw: 0.9            // consumo de la casa o comunidad
+    };
+
+    // =====================================================
+    //  2. OBTENER UNA LECTURA (según el modo)
+    // =====================================================
+
+    // MODO SIMULADO: genera datos que cambian solos
+    function leerSimulado() {
+      sim.hora = (sim.hora + 0.2) % 24;   // cada lectura avanza ~12 minutos
+
+      // Irradiancia: curva de sol entre las 6 y las 18 horas
+      let irr = 0;
+      if (sim.hora > 6 && sim.hora < 18) {
+        irr = 1000 * Math.sin(Math.PI * (sim.hora - 6) / 12);
+        irr += (Math.random() - 0.5) * 60;   // ruido
+        if (irr < 0) irr = 0;
+      }
+
+      const cap = Number($("capacidad").value);
+      const teorica = (irr / 1000) * cap;
+      const real = teorica * sim.suciedad * (0.95 + Math.random() * 0.06);
+
+      // La batería sube si se genera más de lo que se consume
+      const consumo = sim.hora > 6 && sim.hora < 18 ? sim.cargaKw : sim.cargaKw * 0.5;
+      sim.soc += (real - consumo) * 1.2;
+      if (sim.soc > 100) sim.soc = 100;
+      if (sim.soc < 0) sim.soc = 0;
+
+      return Promise.resolve({ soc: sim.soc, irradiancia: irr, real: real });
+    }
+
+    // MODO MANUAL: lee los controles deslizantes
+    function leerManual() {
+      return Promise.resolve({
+        soc: Number($("mSocIn").value),
+        irradiancia: Number($("mIrrIn").value),
+        real: Number($("mRealIn").value)
+      });
+    }
+
+    // MODO API: pide los datos a tu servidor.
+    // *** AQUÍ ajustas los nombres de los campos según lo que responda tu API ***
+    function leerRespuesta(json) {
+      return {
+        soc: json.soc,
+        irradiancia: json.irradiancia,
+        real: json.potencia_real      // cambia este nombre si tu API usa otro
+      };
+    }
+
+    function leerApi() {
+      const url = $("apiUrl").value.trim();
+      if (!url) {
+        $("apiEstado").textContent = "Escribe la URL de tu API para recibir datos reales.";
+        return Promise.reject(new Error("Sin URL"));
+      }
+      const cabeceras = {};
+      const token = $("apiToken").value.trim();
+      if (token) cabeceras["Authorization"] = "Bearer " + token;
+
+      return fetch(url, { headers: cabeceras })
+        .then(function (r) {
+          if (!r.ok) throw new Error("Respuesta " + r.status);
+          return r.json();
+        })
+        .then(function (json) {
+          const d = leerRespuesta(json);
+          if (d.soc === undefined || d.irradiancia === undefined || d.real === undefined) {
+            throw new Error("Faltan campos en la respuesta");
+          }
+          $("apiEstado").textContent = "Conectada. Última respuesta correcta a las " + new Date().toLocaleTimeString("es-MX") + ".";
+          return d;
+        })
+        .catch(function (e) {
+          $("apiEstado").textContent = "Error al consultar la API: " + e.message;
+          throw e;
+        });
+    }
+
+    // =====================================================
+    //  3. DIAGNÓSTICO (puedes modificar las reglas aquí)
+    // =====================================================
+    function diagnosticar(d) {
+      const cap = Number($("capacidad").value);
+      const teorica = (d.irradiancia / 1000) * cap;
+
+      let caida = 0;
+      if (teorica > 0.05) {
+        caida = ((teorica - d.real) / teorica) * 100;
+        if (caida < 0) caida = 0;
+      }
+
+      let estado = "verde";
+      let titulo = "Normal";
+      let mensaje = "La planta opera correctamente.";
+
+      if (d.soc < Number($("uRojo").value)) {
+        estado = "rojo";
+        titulo = "Crítico";
+        mensaje = "Riesgo de sobredescarga. Requiere atención inmediata.";
+      } else if (d.soc < Number($("uAmarillo").value)) {
+        estado = "amarillo";
+        titulo = "Alerta preventiva";
+        mensaje = "Batería baja. Programa una revisión.";
+      } else if (caida > Number($("uCaida").value)) {
+        estado = "amarillo";
+        titulo = "Alerta preventiva";
+        mensaje = "Generación menor a la esperada. Revisa polvo o sombra en los paneles.";
+      }
+
+      return { soc: d.soc, irr: d.irradiancia, real: d.real, teorica: teorica,
+               caida: caida, estado: estado, titulo: titulo, mensaje: mensaje };
+    }
+
+    // =====================================================
+    //  4. MOSTRAR EN PANTALLA
+    // =====================================================
+    function color(estado) {
+      return estado === "rojo" ? "var(--rojo)" : estado === "amarillo" ? "var(--amarillo)" : "var(--verde)";
+    }
+
+    function mostrar(r) {
+      $("resultado").className = "resultado " + r.estado;
+      $("estadoTexto").textContent = r.titulo;
+      $("diagnosticoTexto").textContent = r.mensaje;
+
+      $("mSoc").textContent = r.soc.toFixed(0) + " %";
+      $("mIrr").textContent = r.irr.toFixed(0) + " W/m²";
+      $("mReal").textContent = r.real.toFixed(2) + " kW";
+      $("mTeo").textContent = r.teorica.toFixed(2) + " kW";
+      $("mCaida").textContent = r.caida.toFixed(1) + " %";
+
+      $("bSoc").style.width = r.soc + "%";
+      $("bSoc").style.background = r.soc < Number($("uRojo").value) ? "var(--rojo)"
+        : r.soc < Number($("uAmarillo").value) ? "var(--amarillo)" : "var(--verde)";
+
+      const pCaida = Math.min(r.caida, 100);
+      $("bCaida").style.width = pCaida + "%";
+      $("bCaida").style.background = r.caida > Number($("uCaida").value) ? "var(--amarillo)" : "var(--verde)";
+
+      $("ultima").textContent = "Última lectura: " + new Date().toLocaleTimeString("es-MX");
+    }
+
+    // =====================================================
+    //  5. REGISTRO DE ALERTAS
+    // =====================================================
+    function registrarAlerta(r) {
+      if (r.estado === ultimoEstado) return;   // solo cuando cambia el estado
+      ultimoEstado = r.estado;
+
+      alertas.unshift({ hora: new Date().toLocaleTimeString("es-MX"), estado: r.estado,
+                        titulo: r.titulo, mensaje: r.mensaje });
+      if (alertas.length > 50) alertas.pop();
+      dibujarAlertas();
+
+      // Vibra el teléfono si el estado es crítico
+      if (r.estado === "rojo" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    }
+
+    function dibujarAlertas() {
+      const cont = $("listaAlertas");
+      cont.innerHTML = "";
+      alertas.forEach(function (a) {
+        const fila = document.createElement("div");
+        fila.className = "alerta";
+        fila.innerHTML = '<div class="punto ' + a.estado + '"></div><div><strong>' +
+          a.titulo + "</strong><small>" + a.hora + " · " + a.mensaje + "</small></div>";
+        cont.appendChild(fila);
+      });
+      $("sinAlertas").hidden = alertas.length > 0;
+    }
+
+    function borrarRegistro() {
+      alertas = [];
+      lecturas = [];
+      ultimoEstado = null;
+      dibujarAlertas();
+      dibujarGraficas();
+    }
+
+    function descargarCSV() {
+      if (lecturas.length === 0) { alert("Aún no hay lecturas para descargar."); return; }
+      let csv = "hora,soc,irradiancia,potencia_real,potencia_teorica,caida,estado\n";
+      lecturas.forEach(function (l) {
+        csv += [l.hora, l.soc.toFixed(1), l.irr.toFixed(0), l.real.toFixed(3),
+                l.teorica.toFixed(3), l.caida.toFixed(1), l.estado].join(",") + "\n";
+      });
+      const blob = new Blob([csv], { type: "text/csv" });
+      const enlace = document.createElement("a");
+      enlace.href = URL.createObjectURL(blob);
+      enlace.download = "lecturas_fotovoltaicas.csv";
+      enlace.click();
+    }
+
+    // =====================================================
+    //  6. GRÁFICAS (se dibujan con canvas, sin librerías)
+    // =====================================================
+    function dibujarLinea(canvas, series, maximo) {
+      const ratio = window.devicePixelRatio || 1;
+      const ancho = canvas.clientWidth;
+      const alto = canvas.clientHeight;
+      canvas.width = ancho * ratio;
+      canvas.height = alto * ratio;
+
+      const g = canvas.getContext("2d");
+      g.scale(ratio, ratio);
+      g.clearRect(0, 0, ancho, alto);
+
+      const margen = { izq: 34, der: 8, arr: 8, aba: 8 };
+      const w = ancho - margen.izq - margen.der;
+      const h = alto - margen.arr - margen.aba;
+
+      // Líneas guía y números del eje vertical
+      g.font = "11px sans-serif";
+      g.fillStyle = "#5b6b6d";
+      g.strokeStyle = "#e2ddd0";
+      g.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = margen.arr + (h * i) / 4;
+        g.beginPath(); g.moveTo(margen.izq, y); g.lineTo(ancho - margen.der, y); g.stroke();
+        g.fillText((maximo * (1 - i / 4)).toFixed(maximo <= 10 ? 1 : 0), 2, y + 4);
+      }
+
+      series.forEach(function (s) {
+        if (s.datos.length < 2) return;
+        g.strokeStyle = s.color;
+        g.lineWidth = 2;
+        g.beginPath();
+        s.datos.forEach(function (v, i) {
+          const x = margen.izq + (w * i) / (s.datos.length - 1);
+          const y = margen.arr + h - (Math.min(v, maximo) / maximo) * h;
+          if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        });
+        g.stroke();
+      });
+    }
+
+    function dibujarGraficas() {
+      const ult = lecturas.slice(-60);   // últimas 60 lecturas
+      const cap = Number($("capacidad").value);
+
+      dibujarLinea($("cPotencia"), [
+        { datos: ult.map(function (l) { return l.teorica; }), color: "#f2b705" },
+        { datos: ult.map(function (l) { return l.real; }), color: "#2b6cb0" }
+      ], Math.max(1, Math.ceil(cap)));
+
+      dibujarLinea($("cSoc"), [
+        { datos: ult.map(function (l) { return l.soc; }), color: "#2e9e5b" }
+      ], 100);
+    }
+
+    // =====================================================
+    //  7. CICLO PRINCIPAL
+    // =====================================================
+    function ciclo() {
+      const modo = $("modo").value;
+      const leer = modo === "api" ? leerApi : modo === "manual" ? leerManual : leerSimulado;
+
+      leer().then(function (datos) {
+        const r = diagnosticar(datos);
+        r.hora = new Date().toLocaleTimeString("es-MX");
+
+        lecturas.push(r);
+        if (lecturas.length > 500) lecturas.shift();
+
+        mostrar(r);
+        registrarAlerta(r);
+        if ($("graficas").classList.contains("activa")) dibujarGraficas();
+      }).catch(function () {
+        $("estadoTexto").textContent = "Sin datos";
+        $("diagnosticoTexto").textContent = "No se pudo obtener la lectura. Revisa Ajustes.";
+      });
+    }
+
+    function iniciar() {
+      clearInterval(temporizador);
+      const segundos = Math.max(1, Number($("intervalo").value) || 5);
+      ciclo();
+      temporizador = setInterval(ciclo, segundos * 1000);
+    }
+
+    function cambiarModo() {
+      const modo = $("modo").value;
+      $("controlesManual").hidden = modo !== "manual";
+      $("controlesSim").hidden = modo !== "simulado";
+      $("insignia").textContent = modo === "api" ? "Datos reales" : modo === "manual" ? "Manual" : "Simulado";
+      if (modo !== "api") $("apiEstado").textContent = "La API no está en uso. Elige el modo \"Datos reales (API)\" para activarla.";
+      guardarAjustes();
+      iniciar();
+    }
+
+    // =====================================================
+    //  8. BOTONES DE FALLAS (modo simulado)
+    // =====================================================
+    function alternarSuciedad() {
+      sim.suciedad = sim.suciedad === 1 ? 0.65 : 1;
+      const b = $("btnSuciedad");
+      b.classList.toggle("activo", sim.suciedad !== 1);
+      b.textContent = sim.suciedad === 1 ? "Simular suciedad en paneles" : "Quitar suciedad de los paneles";
+    }
+
+    function alternarCarga() {
+      sim.cargaKw = sim.cargaKw === 0.9 ? 3.5 : 0.9;
+      const b = $("btnCarga");
+      b.classList.toggle("activo", sim.cargaKw !== 0.9);
+      b.textContent = sim.cargaKw === 0.9 ? "Simular consumo muy alto" : "Volver al consumo normal";
+    }
+
+    // =====================================================
+    //  9. PESTAÑAS Y AJUSTES
+    // =====================================================
+    document.querySelectorAll("nav button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        document.querySelectorAll(".pestana").forEach(function (p) { p.classList.remove("activa"); });
+        document.querySelectorAll("nav button").forEach(function (x) { x.classList.remove("actual"); });
+        $(b.dataset.ir).classList.add("activa");
+        b.classList.add("actual");
+        if (b.dataset.ir === "graficas") dibujarGraficas();
+        window.scrollTo(0, 0);
+      });
+    });
+
+    const camposAjustes = ["modo", "intervalo", "capacidad", "apiUrl", "apiToken", "uAmarillo", "uRojo", "uCaida"];
+
+    function guardarAjustes() {
+      try {
+        const datos = {};
+        camposAjustes.forEach(function (id) { datos[id] = $(id).value; });
+        localStorage.setItem("ajustesFotovoltaico", JSON.stringify(datos));
+      } catch (e) { /* si el navegador no permite guardar, no pasa nada */ }
+    }
+
+    function cargarAjustes() {
+      try {
+        const datos = JSON.parse(localStorage.getItem("ajustesFotovoltaico"));
+        if (datos) camposAjustes.forEach(function (id) { if (datos[id] !== undefined) $(id).value = datos[id]; });
+      } catch (e) { /* se usan los valores por defecto */ }
+    }
+
+    camposAjustes.forEach(function (id) {
+      $(id).addEventListener("change", function () {
+        guardarAjustes();
+        if (id === "modo") cambiarModo();
+        if (id === "intervalo") iniciar();
+      });
+    });
+
+    $("mSocIn").addEventListener("input", function () { $("oSoc").textContent = this.value + " %"; ciclo(); });
+    $("mIrrIn").addEventListener("input", function () { $("oIrr").textContent = this.value + " W/m²"; ciclo(); });
+    $("mRealIn").addEventListener("input", ciclo);
+    window.addEventListener("resize", function () {
+      if ($("graficas").classList.contains("activa")) dibujarGraficas();
+    });
+
+    // Arranque
+    cargarAjustes();
+    cambiarModo();
+  </script>
+
+</body>
+</html>
